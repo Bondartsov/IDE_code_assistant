@@ -1,0 +1,33 @@
+# Файл .gitignore
+
+# Игнорирование виртуальных окружений
+venv/
+.env
+.env.local
+
+# Игнорирование временных файлов ОС
+.DS_Store
+Thumbs.db
+
+# Игнорирование файлов Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Игнорирование логов
+*.log
+
+# Игнорирование файлов IDE/редакторов
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Игнорирование тестовых отчетов
+htmlcov/
+.tox/
+.pytest_cache/
+
+# Другие ненужные файлы
+*.sqlite3
+db.sqlite3
