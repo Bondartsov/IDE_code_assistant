@@ -1,165 +1,257 @@
-# Файл: api.py
+# File: api.py
 
-import os
+from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
+from pydantic import BaseModel
+import openai
 import logging
 import numpy as np
-from fastapi import FastAPI, HTTPException, Header
-import openai
-from pydantic import BaseModel
-from dotenv import load_dotenv
+from typing import List, Dict, Any
+from io import BytesIO
+import PyPDF2
+import docx
+
+# Import managers
 from config_storage import ConfigManager
 from index_manager import FAISSIndexManager
-import tiktoken  # Добавлено для работы с токенами
 
-# Загрузка переменных окружения из .env файла
-load_dotenv()
-
-# Инициализируем менеджеры
+# Initialize managers
 config_manager = ConfigManager()
 index_manager = FAISSIndexManager()
 
-# Устанавливаем API-ключ OpenAI
-openai_api_key = config_manager.get_openai_api_key()
-openai.api_key = openai_api_key
-
-# Создаем экземпляр приложения FastAPI
+# Create FastAPI app instance
 app = FastAPI()
 
-# Настраиваем логирование
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Модели Pydantic для запросов
+# Pydantic models for requests
 class OpenAIRequest(BaseModel):
     prompt: str
 
-class DocumentRequest(BaseModel):
-    title: str
-    content: str
+class SearchRequest(BaseModel):
+    query: str
 
-# Эндпоинт для генерации нового внутреннего API-ключа
+# Endpoint to generate a new internal API key
 @app.post("/api/generate_key/")
 def generate_api_key():
     new_key = config_manager.generate_api_key()
-    # Не выводим сгенерированный ключ в логи по соображениям безопасности
+    # Do not log the generated key for security reasons
     logging.info("Generated new API key")
     return {"api_key": new_key}
 
-# Эндпоинт для получения списка доступных моделей OpenAI
+# Endpoint to expire an existing API key
+@app.post("/api/expire_key/{api_key}/")
+def expire_api_key(api_key: str):
+    if api_key in config_manager.valid_keys:
+        del config_manager.valid_keys[api_key]
+        logging.info(f"Expired API key: {api_key}")
+        return {"detail": "API key expired successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="API key not found")
+
+# Endpoint to get the list of available OpenAI models
 @app.get("/api/models/")
 def get_models(api_key: str = Header(..., alias="api-key")):
-    # Проверка валидности внутреннего API-ключа
     if not config_manager.validate_api_key(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
     try:
+        openai.api_key = config_manager.get_openai_api_key()
         # Получаем список моделей из OpenAI API
         response = openai.Model.list()
         models = [model["id"] for model in response["data"]]
         return {"models": models}
     except openai.error.OpenAIError as e:
-        # Логируем ошибку без раскрытия подробностей
         logging.error(f"OpenAIError: {e}")
         raise HTTPException(status_code=500, detail="OpenAI API error")
-    except Exception as e:
-        # Логируем неожиданные ошибки
-        logging.error(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Unexpected error occurred")
 
-# Эндпоинт для выполнения запроса к OpenAI API
+# Endpoint to make a request to the OpenAI API
 @app.post("/api/openai/")
-def run_openai_prompt(request: OpenAIRequest, api_key: str = Header(..., alias="api-key")):
-    # Валидируем внутренний API-ключ
+def run_openai_prompt(
+    request: OpenAIRequest, api_key: str = Header(..., alias="api-key")
+):
+    # Validate internal API key
     if not config_manager.validate_api_key(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
     prompt = request.prompt
-    # Получаем эмбеддинг запроса
-    openai_api_key = config_manager.get_openai_api_key()
-    openai.api_key = openai_api_key
 
+    # Set OpenAI API key
+    openai.api_key = config_manager.get_openai_api_key()
+
+    # Get embedding of the prompt
     try:
         embedding_response = openai.Embedding.create(
-            input=prompt,
-            model="text-embedding-ada-002"
+            input=prompt, model="text-embedding-ada-002"
         )
-        query_embedding = embedding_response['data'][0]['embedding']
+        query_embedding = embedding_response["data"][0]["embedding"]
     except openai.error.OpenAIError as e:
-        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"OpenAI API error: {str(e)}"
+        )
 
-    # Ищем релевантные документы
+    # Search for relevant documents
     try:
-        relevant_docs = index_manager.search(np.array(query_embedding), top_k=5)
+        relevant_docs = index_manager.search(
+            np.array(query_embedding), top_k=5
+        )
     except Exception as e:
         logging.error(f"Search error: {e}")
-        raise HTTPException(status_code=500, detail="Search error occurred")
+        raise HTTPException(
+            status_code=500, detail="Search error occurred"
+        )
 
-    # Формируем контекст из найденных документов
+    # Build context from found documents
     context = ""
     if relevant_docs:
-        context = "\n\n".join([doc['content'] for doc in relevant_docs])
+        context = "\n\n".join([doc["content"] for doc in relevant_docs])
         final_prompt = f"Context:\n{context}\n\nQuestion:\n{prompt}"
     else:
-        # Если нет релевантных документов, используем исходный prompt
+        # If no relevant documents, use the original prompt
         final_prompt = prompt
 
-    # Проверяем длину prompt и сокращаем при необходимости
-    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
-    num_tokens = len(encoding.encode(final_prompt))
+    # Check prompt length and truncate if necessary
     MAX_TOKENS = 4096
-    if num_tokens > MAX_TOKENS:
-        # Суммаризируем контекст, если он есть
+    total_tokens_estimated = len(final_prompt.split())  # Rough estimation
+    if total_tokens_estimated > MAX_TOKENS:
+        # Summarize context if it exists
         if context:
             summary_prompt = f"Please summarize the following text:\n\n{context}"
             try:
                 summary_response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=[{"role": "user", "content": summary_prompt}],
-                    max_tokens=1024
+                    max_tokens=1024,
                 )
                 summarized_context = summary_response.choices[0].message.content
-                final_prompt = f"Context:\n{summarized_context}\n\nQuestion:\n{prompt}"
+                final_prompt = (
+                    f"Context:\n{summarized_context}\n\nQuestion:\n{prompt}"
+                )
             except openai.error.OpenAIError as e:
-                raise HTTPException(status_code=500, detail=f"OpenAI API error during summarization: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"OpenAI API error during summarization: {str(e)}",
+                )
         else:
-            # Если контекст отсутствует, используем исходный prompt
-            final_prompt = prompt
+            # If no context, use the original prompt
+            pass  # Do nothing
 
-    # Отправляем окончательный prompt в OpenAI API
     try:
+        # Send the final prompt to OpenAI API
         completion = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": final_prompt}]
+            messages=[{"role": "user", "content": final_prompt}],
         )
         response_text = completion.choices[0].message.content
         return {"response": response_text}
     except openai.error.OpenAIError as e:
         logging.error(f"OpenAIError: {e}")
-        raise HTTPException(status_code=500, detail="OpenAI API error")
+        raise HTTPException(
+            status_code=500, detail="OpenAI API error"
+        )
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Unexpected error occurred")
+        raise HTTPException(
+            status_code=500, detail="Unexpected error occurred"
+        )
 
-# Эндпоинт для добавления документа в базу знаний
+# Function to extract text from PDF
+async def extract_text_from_pdf(file: UploadFile) -> str:
+    contents = await file.read()
+    reader = PyPDF2.PdfReader(BytesIO(contents))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
 
+# Function to extract text from DOCX
+async def extract_text_from_docx(file: UploadFile) -> str:
+    contents = await file.read()
+    document = docx.Document(BytesIO(contents))
+    text = "\n".join([para.text for para in document.paragraphs])
+    return text
+
+# Endpoint to add a document to the knowledge base
 @app.post("/api/knowledge_base/")
-def add_document_endpoint(request: DocumentRequest, api_key: str = Header(..., alias="api-key")):
+async def add_document_endpoint(
+    api_key: str = Header(..., alias="api-key"),
+    title: str = Form(...),
+    content: str = Form(None),
+    file: UploadFile = File(None)
+):
+    # Validate internal API key
     if not config_manager.validate_api_key(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
-    # Получаем эмбеддинг контента с помощью OpenAI
+
+    if content is None and file is None:
+        raise HTTPException(status_code=400, detail="Either content or file must be provided")
+
+    if file is not None:
+        # Process uploaded file
+        if file.content_type == "application/pdf":
+            content = await extract_text_from_pdf(file)
+        elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            content = await extract_text_from_docx(file)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    # Check that content is not empty after processing the file
+    if not content:
+        raise HTTPException(status_code=400, detail="Content is empty after processing the file")
+
+    # Set OpenAI API key
     openai_api_key = config_manager.get_openai_api_key()
     openai.api_key = openai_api_key
 
+    # Get embedding of the content using OpenAI
     try:
         response = openai.Embedding.create(
-            input=request.content,
+            input=content,
             model="text-embedding-ada-002"
         )
         embedding = response['data'][0]['embedding']
     except openai.error.OpenAIError as e:
         raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
-    # Сохраняем документ и эмбеддинг
+    # Save document and embedding
     embedding_bytes = np.array(embedding, dtype='float32').tobytes()
-    # Исправление: заменяем save_document на add_document
-    doc_id = config_manager.add_document(request.title, request.content, embedding_bytes)
-    index_manager.add_document(doc_id, np.array(embedding), {'title': request.title})
+    doc_id = config_manager.add_document(title, content, embedding_bytes)
+    index_manager.add_document(doc_id, np.array(embedding), {'title': title})
 
     return {"detail": "Document added successfully", "doc_id": doc_id}
+
+# Endpoint to search the knowledge base
+@app.post("/api/search/")
+def search_endpoint(
+    request: SearchRequest, api_key: str = Header(..., alias="api-key")
+):
+    # Validate internal API key
+    if not config_manager.validate_api_key(api_key):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    query = request.query
+
+    # Set OpenAI API key
+    openai.api_key = config_manager.get_openai_api_key()
+
+    # Get embedding of the query
+    try:
+        response = openai.Embedding.create(
+            input=query, model="text-embedding-ada-002"
+        )
+        query_embedding = response["data"][0]["embedding"]
+    except openai.error.OpenAIError as e:
+        raise HTTPException(
+            status_code=500, detail=f"OpenAI API error: {str(e)}"
+        )
+
+    # Perform search in the index
+    try:
+        results = index_manager.search(
+            np.array(query_embedding), top_k=5
+        )
+    except Exception as e:
+        logging.error(f"Search error: {e}")
+        raise HTTPException(
+            status_code=500, detail="Search error occurred"
+        )
+
+    # Return the search results
+    return {"results": results}
