@@ -1,151 +1,148 @@
-# File: config_storage.py
+# config_storage.py
 
 import os
-import secrets
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, LargeBinary, Text, DateTime
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
+from datetime import datetime
+import secrets
+import logging
 
-# Load environment variables from the .env file
+# Загружаем переменные окружения из файла .env
 load_dotenv()
 
+# Создаём базовый класс для моделей SQLAlchemy
 Base = declarative_base()
 
 class Document(Base):
+    """
+    Модель для хранения документов в базе данных.
+    """
     __tablename__ = 'documents'
 
-    id = Column(Integer, primary_key=True)
-    document_id = Column(String(36), nullable=False)  # Изменено на String(36)
-    title = Column(String, nullable=False)
-    content = Column(Text, nullable=False)
-    embedding = Column(LargeBinary, nullable=False)
-    added_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True)  # Первичный ключ (автоинкрементный)
+    document_id = Column(String(36), nullable=False)  # Уникальный идентификатор документа (UUID)
+    title = Column(String, nullable=False)  # Заголовок документа
+    content = Column(Text, nullable=False)  # Содержание документа
+    embedding = Column(LargeBinary, nullable=False)  # Эмбеддинг документа в двоичном формате
+    added_at = Column(DateTime, default=datetime.utcnow)  # Дата и время добавления документа
+
+class APIKey(Base):
+    """
+    Модель для хранения API-ключей в базе данных.
+    """
+    __tablename__ = 'api_keys'
+
+    key = Column(String, primary_key=True)  # API-ключ (используется в качестве первичного ключа)
+    created_at = Column(DateTime, default=datetime.utcnow)  # Дата и время создания ключа
 
 class ConfigManager:
     """
-    Class for managing the application's configuration, including API key management,
-    API provider settings, and database interactions.
+    Класс для управления конфигурацией приложения и взаимодействия с базой данных.
     """
-
     def __init__(self):
-        self.valid_keys = {}
-        # Initialize the database
-        self.engine = create_engine('sqlite:///app.db')
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
-
-        # Load settings from the .env file
+        # Загружаем конфигурационные параметры из переменных окружения
         self.api_provider = os.getenv("API_PROVIDER", "openai")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.lmstudio_api_url = os.getenv("LMSTUDIO_API_URL")
+        self.model_name = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
+        self.valid_keys = {}  # Словарь для хранения действительных API-ключей
 
-    def generate_api_key(self):
-        """
-        Generates a new API key and saves it with an expiration time.
+        # Инициализация базы данных
+        self.engine = create_engine('sqlite:///app.db')  # Создаём подключение к базе данных SQLite
+        Base.metadata.create_all(self.engine)  # Создаём таблицы, если они ещё не существуют
+        self.Session = sessionmaker(bind=self.engine)  # Создаём класс для сессий
 
-        Returns:
-            str: Generated API key
-        """
-        new_key = secrets.token_hex(16)
-        expiry_time = datetime.now() + timedelta(hours=24)
-        self.valid_keys[new_key] = expiry_time
-        return new_key
-
-    def validate_api_key(self, key):
-        """
-        Validates the provided API key.
-
-        Args:
-            key (str): API key to validate
-
-        Returns:
-            bool: True if the key is valid and not expired, else False
-        """
-        self.cleanup_expired_keys()
-        return key in self.valid_keys
-
-    def cleanup_expired_keys(self):
-        """
-        Removes expired API keys from the list of valid keys.
-        """
-        now = datetime.now()
-        self.valid_keys = {k: v for k, v in self.valid_keys.items() if v > now}
+        # Загрузка существующих API-ключей из базы данных
+        self.load_api_keys()
 
     def get_api_provider(self):
         """
-        Returns the selected API provider.
-
-        Returns:
-            str: Name of the API provider
+        Возвращает выбранного провайдера API.
         """
         return self.api_provider
 
     def get_openai_api_key(self):
         """
-        Retrieves the OpenAI API key from environment variables.
-
-        Returns:
-            str: OpenAI API key
-
-        Raises:
-            ValueError: If the OpenAI API key is not found
+        Возвращает API-ключ OpenAI.
         """
-        if not self.openai_api_key and self.api_provider == "openai":
-            raise ValueError("OpenAI API key not found. Add it to the .env file with the key OPENAI_API_KEY.")
         return self.openai_api_key
 
     def get_lmstudio_api_url(self):
         """
-        Retrieves the LMStudio API URL from environment variables.
-
-        Returns:
-            str: LMStudio API URL
-
-        Raises:
-            ValueError: If the LMStudio API URL is not found
+        Возвращает URL LMStudio API.
         """
-        if not self.lmstudio_api_url and self.api_provider == "lmstudio":
-            raise ValueError("LMStudio API URL not found. Add it to the .env file with the key LMSTUDIO_API_URL.")
         return self.lmstudio_api_url
 
-    def add_document(self, title: str, content: str, embedding: bytes, document_id: str):
+    def get_model_name(self):
         """
-        Adds a new document to the database.
+        Возвращает имя модели, выбранной для генерации ответов.
+        """
+        return self.model_name
 
-        Args:
-            title (str): Title of the document
-            content (str): Content of the document
-            embedding (bytes): Embedding vector representation of the document
-            document_id (str): Document ID
+    def validate_api_key(self, api_key: str) -> bool:
+        """
+        Проверяет, является ли переданный API-ключ действительным.
+        """
+        return api_key in self.valid_keys
 
-        Returns:
-            int: ID of the added document
+    def generate_api_key(self):
+        """
+        Генерирует новый API-ключ и сохраняет его в базе данных.
+        """
+        new_key = secrets.token_hex(16)  # Генерируем безопасный случайный ключ
+        self.valid_keys[new_key] = datetime.utcnow()  # Добавляем ключ в словарь действительных ключей
+        # Сохраняем ключ в базе данных
+        session = self.Session()
+        api_key = APIKey(key=new_key)
+        session.add(api_key)
+        session.commit()
+        session.close()
+        return new_key
+
+    def load_api_keys(self):
+        """
+        Загружает все существующие API-ключи из базы данных.
         """
         session = self.Session()
-        new_doc = Document(
+        api_keys = session.query(APIKey).all()
+        for api_key in api_keys:
+            self.valid_keys[api_key.key] = api_key.created_at
+        session.close()
+
+    def add_document(self, title: str, content: str, embedding_bytes: bytes, document_id: str):
+        """
+        Добавляет документ в базу данных.
+
+        :param title: Заголовок документа.
+        :param content: Содержание документа.
+        :param embedding_bytes: Эмбеддинг документа в двоичном формате.
+        :param document_id: Уникальный идентификатор документа (UUID).
+        :return: ID добавленного документа.
+        """
+        session = self.Session()
+        document = Document(
             document_id=document_id,
             title=title,
             content=content,
-            embedding=embedding
+            embedding=embedding_bytes
         )
-        session.add(new_doc)
+        session.add(document)
         session.commit()
-        doc_id = new_doc.id  # Obtain the document ID after commit
+        doc_id = document.id  # Получаем автоинкрементное значение ID документа
         session.close()
         return doc_id
 
     def get_document(self, doc_id: int):
         """
-        Retrieves a document from the database by its ID.
+        Получает документ из базы данных по его ID.
 
-        Args:
-            doc_id (int): ID of the document
-
-        Returns:
-            Document: Document object or None if not found
+        :param doc_id: Первичный ключ документа (целое число).
+        :return: Экземпляр Document или None.
         """
         session = self.Session()
-        document = session.query(Document).filter_by(id=doc_id).first()
+        document = session.query(Document).filter(Document.id == doc_id).first()
         session.close()
         return document
+
+    # Здесь вы можете добавить дополнительные методы по необходимости
