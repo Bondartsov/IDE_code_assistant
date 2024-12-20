@@ -1,0 +1,27 @@
+[
+  {
+    "method": "POST",
+    "endpoint": "/api/generate_key/",
+    "description": "Генерация API-ключа"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/models/",
+    "description": "Получение списка доступных моделей"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/openai/",
+    "description": "Отправка запроса к модели OpenAI"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/knowledge_base/",
+    "description": "Добавление документа в базу знаний"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/search/",
+    "description": "Поиск по базе знаний"
+  }
+]

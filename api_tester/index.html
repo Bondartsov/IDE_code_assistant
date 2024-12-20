@@ -1,0 +1,114 @@
+<!-- Файл: index.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Тестирование API</title>
+    <!-- Подключаем Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+    />
+    <!-- Подключаем пользовательские стили (если используются) -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Левая панель со списком эндпоинтов -->
+            <nav class="col-md-3 d-none d-md-block bg-light sidebar">
+                <div class="sidebar-sticky pt-3">
+                    <h5>Эндпоинты API</h5>
+                    <ul class="nav flex-column" id="endpoints-list">
+                        <!-- Динамически заполняемый список эндпоинтов -->
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Правая панель с настройками запроса и отображением ответа -->
+            <main role="main" class="col-md-9 ml-sm-auto col-lg-9 px-4">
+                <!-- Форма настройки запроса -->
+                <h2 id="endpoint-title">Выберите эндпоинт</h2>
+                <form id="request-form">
+                    <!-- Поля формы будут динамически изменяться -->
+                    
+                    <!-- Метод запроса -->
+                    <div class="form-group">
+                        <label for="method">Метод</label>
+                        <select class="form-control" id="method">
+                            <option>GET</option>
+                            <option>POST</option>
+                            <option>PUT</option>
+                            <option>DELETE</option>
+                        </select>
+                    </div>
+
+                    <!-- URL эндпоинта -->
+                    <div class="form-group">
+                        <label for="url">URL</label>
+                        <input type="text" class="form-control" id="url" readonly>
+                    </div>
+
+                    <!-- Заголовки запроса -->
+                    <div class="form-group">
+                        <label>Заголовки</label>
+                        <div id="headers-container">
+                            <div class="form-row mb-2 header-row">
+                                <div class="col">
+                                    <input type="text" class="form-control" placeholder="Ключ" value="api-key">
+                                </div>
+                                <div class="col">
+                                    <input type="text" class="form-control" placeholder="Значение">
+                                </div>
+                                <div class="col-1">
+                                    <button type="button" class="btn btn-danger remove-header">&times;</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary" id="add-header">Добавить заголовок</button>
+                    </div>
+
+                    <!-- Параметры запроса -->
+                    <div class="form-group">
+                        <label for="params">Query-параметры</label>
+                        <div id="params-container">
+                            <!-- Пары ключ-значение для параметров -->
+                        </div>
+                        <button type="button" class="btn btn-secondary" id="add-param">Добавить параметр</button>
+                    </div>
+
+                    <!-- Тело запроса -->
+                    <div class="form-group" id="body-group">
+                        <label for="body">Текстовое поле</label>
+                        <textarea class="form-control" id="body" rows="5" placeholder='Введите текст'></textarea>
+                    </div>
+
+                    <!-- Загрузка файлов (если требуется) -->
+                    <div class="form-group" id="file-group" style="display: none;">
+                        <label for="file">Загрузить файл</label>
+                        <input type="file" class="form-control-file" id="file">
+                    </div>
+
+                    <!-- Кнопка отправки запроса -->
+                    <button type="submit" class="btn btn-primary" id="send-request">
+                        Отправить запрос
+                    </button>
+                </form>
+
+                <!-- Блок отображения ответа -->
+                <div id="response-output" class="mt-4">
+                    <h4>Ответ API:</h4>
+                    <pre id="response-content"></pre>
+                </div>
+            </main>
+    </div>
+    </div>
+
+    <!-- Подключение скриптов -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+    <!-- Подключаем Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Подключаем пользовательский скрипт -->
+    <script src="app.js"></script>
+</body>
+</html>

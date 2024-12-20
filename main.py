@@ -1,40 +1,34 @@
 # Файл: main.py
 
-from config_storage import ConfigManager
-import openai
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
-# Инициализация менеджера конфигурации
-config_manager = ConfigManager()
+from api.endpoints import router as api_router
+from core.logger import logger, setup_logging
 
-# Проверка на наличие API-ключа OpenAI
-api_key = config_manager.get_openai_api_key()
-if not api_key:
-    raise ValueError("API ключ не найден. Добавьте его в файл .env с ключом OPENAI_API_KEY.")
+# Настройка логирования
+setup_logging()
 
-# Установка API-ключа OpenAI
-openai.api_key = api_key
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Действия при запуске приложения
+    logger.info("Приложение запущено")
+    yield
+    # Действия при остановке приложения
+    logger.info("Приложение остановлено")
 
-# Меню выбора действий
-print("Выберите действие:")
-print("1. Отправить новый запрос к OpenAI API")
+# Инициализация приложения FastAPI с использованием lifespan
+app = FastAPI(title="IDE Code Assistant", version="1.0.0", lifespan=lifespan)
 
-choice = input("Введите номер действия: ")
+# Настройка CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],       # Разрешаем запросы с любых источников
+    allow_credentials=True,
+    allow_methods=["*"],       # Разрешаем все методы (GET, POST и т.д.)
+    allow_headers=["*"],       # Разрешаем все заголовки
+)
 
-if choice == "1":
-    # Отправка нового запроса
-    prompt = input("Введите текст запроса: ")
-    try:
-        # Отправка запроса к OpenAI API
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        result = response.choices[0].message.content
-        print("\nРезультат запроса:")
-        print(result)
-    except openai.error.OpenAIError as e:
-        print(f"Ошибка OpenAI API: {e}")
-    except Exception as e:
-        print(f"Произошла непредвиденная ошибка: {e}")
-else:
-    print("Неверный выбор действия.")
+# Подключение маршрутов из пакета api
+app.include_router(api_router)
