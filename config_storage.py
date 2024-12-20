@@ -1,4 +1,4 @@
-# Файл: config_storage.py
+# File: config_storage.py
 
 import os
 import secrets
@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, LargeBinary, Text, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Загружаем переменные окружения из файла .env
+# Load environment variables from the .env file
 load_dotenv()
 
 Base = declarative_base()
@@ -16,6 +16,7 @@ class Document(Base):
     __tablename__ = 'documents'
 
     id = Column(Integer, primary_key=True)
+    document_id = Column(String(36), nullable=False)  # Изменено на String(36)
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     embedding = Column(LargeBinary, nullable=False)
@@ -23,28 +24,28 @@ class Document(Base):
 
 class ConfigManager:
     """
-    Класс для управления конфигурацией приложения, включая управление API-ключами,
-    настройками API провайдера и взаимодействие с базой данных.
+    Class for managing the application's configuration, including API key management,
+    API provider settings, and database interactions.
     """
 
     def __init__(self):
         self.valid_keys = {}
-        # Инициализация базы данных
+        # Initialize the database
         self.engine = create_engine('sqlite:///app.db')
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
 
-        # Загружаем настройки из .env
+        # Load settings from the .env file
         self.api_provider = os.getenv("API_PROVIDER", "openai")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.lmstudio_api_url = os.getenv("LMSTUDIO_API_URL")
 
     def generate_api_key(self):
         """
-        Генерирует новый API-ключ и сохраняет его со временем истечения.
+        Generates a new API key and saves it with an expiration time.
 
-        Возвращает:
-            str: Сгенерированный API-ключ
+        Returns:
+            str: Generated API key
         """
         new_key = secrets.token_hex(16)
         expiry_time = datetime.now() + timedelta(hours=24)
@@ -53,90 +54,96 @@ class ConfigManager:
 
     def validate_api_key(self, key):
         """
-        Проверяет валидность предоставленного API-ключа.
+        Validates the provided API key.
 
-        Аргументы:
-            key (str): API-ключ для проверки
+        Args:
+            key (str): API key to validate
 
-        Возвращает:
-            bool: True, если ключ валиден и не истек, иначе False
+        Returns:
+            bool: True if the key is valid and not expired, else False
         """
         self.cleanup_expired_keys()
         return key in self.valid_keys
 
     def cleanup_expired_keys(self):
         """
-        Удаляет устаревшие API-ключи из списка валидных ключей.
+        Removes expired API keys from the list of valid keys.
         """
         now = datetime.now()
         self.valid_keys = {k: v for k, v in self.valid_keys.items() if v > now}
 
     def get_api_provider(self):
         """
-        Возвращает выбранного поставщика API.
+        Returns the selected API provider.
 
-        Возвращает:
-            str: Название поставщика API
+        Returns:
+            str: Name of the API provider
         """
         return self.api_provider
 
     def get_openai_api_key(self):
         """
-        Получает API-ключ OpenAI из переменных окружения.
+        Retrieves the OpenAI API key from environment variables.
 
-        Возвращает:
-            str: API-ключ OpenAI
+        Returns:
+            str: OpenAI API key
 
-        Вызывает:
-            ValueError: Если API-ключ OpenAI не найден
+        Raises:
+            ValueError: If the OpenAI API key is not found
         """
         if not self.openai_api_key and self.api_provider == "openai":
-            raise ValueError("API ключ OpenAI не найден. Добавьте его в файл .env с ключом OPENAI_API_KEY.")
+            raise ValueError("OpenAI API key not found. Add it to the .env file with the key OPENAI_API_KEY.")
         return self.openai_api_key
 
     def get_lmstudio_api_url(self):
         """
-        Получает URL LMStudio из переменных окружения.
+        Retrieves the LMStudio API URL from environment variables.
 
-        Возвращает:
-            str: URL LMStudio
+        Returns:
+            str: LMStudio API URL
 
-        Вызывает:
-            ValueError: Если URL LMStudio не найден
+        Raises:
+            ValueError: If the LMStudio API URL is not found
         """
         if not self.lmstudio_api_url and self.api_provider == "lmstudio":
-            raise ValueError("URL LMStudio не найден. Добавьте его в файл .env с ключом LMSTUDIO_API_URL.")
+            raise ValueError("LMStudio API URL not found. Add it to the .env file with the key LMSTUDIO_API_URL.")
         return self.lmstudio_api_url
-    def add_document(self, title: str, content: str, embedding: bytes):
+
+    def add_document(self, title: str, content: str, embedding: bytes, document_id: str):
         """
-        Добавляет новый документ в базу данных.
+        Adds a new document to the database.
 
-        Аргументы:
-            title (str): Заголовок документа
-            content (str): Содержимое документа
-            embedding (bytes): Векторное представление документа
+        Args:
+            title (str): Title of the document
+            content (str): Content of the document
+            embedding (bytes): Embedding vector representation of the document
+            document_id (str): Document ID
 
-        Возвращает:
-            int: ID добавленного документа
+        Returns:
+            int: ID of the added document
         """
         session = self.Session()
-        new_doc = Document(title=title, content=content, embedding=embedding)
+        new_doc = Document(
+            document_id=document_id,
+            title=title,
+            content=content,
+            embedding=embedding
+        )
         session.add(new_doc)
         session.commit()
-        doc_id = new_doc.id  # Получаем ID документа после коммита
+        doc_id = new_doc.id  # Obtain the document ID after commit
         session.close()
         return doc_id
 
-    # Добавьте метод get_document
     def get_document(self, doc_id: int):
         """
-        Получает документ из базы данных по его ID.
+        Retrieves a document from the database by its ID.
 
-        Аргументы:
-            doc_id (int): ID документа
+        Args:
+            doc_id (int): ID of the document
 
-        Возвращает:
-            Document: Объект документа или None, если не найден
+        Returns:
+            Document: Document object or None if not found
         """
         session = self.Session()
         document = session.query(Document).filter_by(id=doc_id).first()
