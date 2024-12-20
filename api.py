@@ -7,7 +7,7 @@ import logging
 import numpy as np
 from typing import List, Dict, Any
 from io import BytesIO
-import PyPDF2
+import pypdf
 import docx
 
 # Import managers
@@ -56,7 +56,7 @@ def get_models(api_key: str = Header(..., alias="api-key")):
         raise HTTPException(status_code=401, detail="Invalid API key")
     try:
         openai.api_key = config_manager.get_openai_api_key()
-        # Получаем список моделей из OpenAI API
+        # Get the list of models from OpenAI API
         response = openai.Model.list()
         models = [model["id"] for model in response["data"]]
         return {"models": models}
@@ -153,10 +153,9 @@ def run_openai_prompt(
             status_code=500, detail="Unexpected error occurred"
         )
 
-# Function to extract text from PDF
+# Function to extract text from PDF using pypdf
 async def extract_text_from_pdf(file: UploadFile) -> str:
-    contents = await file.read()
-    reader = PyPDF2.PdfReader(BytesIO(contents))
+    reader = pypdf.PdfReader(file.file)
     text = ""
     for page in reader.pages:
         text += page.extract_text()
