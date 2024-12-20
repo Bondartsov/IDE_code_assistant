@@ -1,0 +1,41 @@
+/* Файл: styles.css */
+
+/* Стили для левой панели */
+.sidebar {
+    background-color: #f8f9fa;
+    height: 100vh;
+    position: fixed;
+}
+
+/* Стили для списка эндпоинтов */
+#endpoints-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+#endpoints-list li a {
+    display: block;
+    padding: 10px 15px;
+    color: #333;
+    text-decoration: none;
+}
+
+#endpoints-list li a:hover {
+    background-color: #e9ecef;
+}
+
+/* Стили для активного эндпоинта */
+#endpoints-list li a.active {
+    background-color: #007bff;
+    color: #fff;
+}
+
+/* Стили для основной области */
+main {
+    margin-left: 260px; /* Ширина левой панели + отступы */
+}
+
+/* Стили для кнопок удаления заголовков и параметров */
+.remove-header, .remove-param {
+    margin-top: 4px;
+}
