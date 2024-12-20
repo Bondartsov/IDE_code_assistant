@@ -23,16 +23,21 @@ class Document(Base):
 
 class ConfigManager:
     """
-    Класс для управления конфигурацией приложения, включая управление API-ключами и взаимодействие с базой данных.
+    Класс для управления конфигурацией приложения, включая управление API-ключами,
+    настройками API провайдера и взаимодействие с базой данных.
     """
 
     def __init__(self):
-        # Словарь для хранения валидных API-ключей и времени их истечения
         self.valid_keys = {}
         # Инициализация базы данных
         self.engine = create_engine('sqlite:///app.db')
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
+
+        # Загружаем настройки из .env
+        self.api_provider = os.getenv("API_PROVIDER", "openai")
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.lmstudio_api_url = os.getenv("LMSTUDIO_API_URL")
 
     def generate_api_key(self):
         """
@@ -66,6 +71,15 @@ class ConfigManager:
         now = datetime.now()
         self.valid_keys = {k: v for k, v in self.valid_keys.items() if v > now}
 
+    def get_api_provider(self):
+        """
+        Возвращает выбранного поставщика API.
+
+        Возвращает:
+            str: Название поставщика API
+        """
+        return self.api_provider
+
     def get_openai_api_key(self):
         """
         Получает API-ключ OpenAI из переменных окружения.
@@ -76,11 +90,23 @@ class ConfigManager:
         Вызывает:
             ValueError: Если API-ключ OpenAI не найден
         """
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("API ключ не найден. Добавьте его в .env файл с ключом OPENAI_API_KEY.")
-        return api_key
+        if not self.openai_api_key and self.api_provider == "openai":
+            raise ValueError("API ключ OpenAI не найден. Добавьте его в файл .env с ключом OPENAI_API_KEY.")
+        return self.openai_api_key
 
+    def get_lmstudio_api_url(self):
+        """
+        Получает URL LMStudio из переменных окружения.
+
+        Возвращает:
+            str: URL LMStudio
+
+        Вызывает:
+            ValueError: Если URL LMStudio не найден
+        """
+        if not self.lmstudio_api_url and self.api_provider == "lmstudio":
+            raise ValueError("URL LMStudio не найден. Добавьте его в файл .env с ключом LMSTUDIO_API_URL.")
+        return self.lmstudio_api_url
     def add_document(self, title: str, content: str, embedding: bytes):
         """
         Добавляет новый документ в базу данных.
@@ -91,7 +117,7 @@ class ConfigManager:
             embedding (bytes): Векторное представление документа
 
         Возвращает:
-            int: Идентификатор нового документа
+            int: ID добавленного документа
         """
         session = self.Session()
         new_doc = Document(title=title, content=content, embedding=embedding)
@@ -101,43 +127,18 @@ class ConfigManager:
         session.close()
         return doc_id
 
+    # Добавьте метод get_document
     def get_document(self, doc_id: int):
         """
-        Получает документ из базы данных по его идентификатору.
+        Получает документ из базы данных по его ID.
 
         Аргументы:
-            doc_id (int): Идентификатор документа
+            doc_id (int): ID документа
 
         Возвращает:
-            Document: Экземпляр документа или None, если не найден
+            Document: Объект документа или None, если не найден
         """
         session = self.Session()
-        doc = session.query(Document).filter(Document.id == doc_id).first()
+        document = session.query(Document).filter_by(id=doc_id).first()
         session.close()
-        return doc
-
-    def delete_document(self, doc_id: int):
-        """
-        Удаляет документ из базы данных по его идентификатору.
-
-        Аргументы:
-            doc_id (int): Идентификатор документа для удаления
-        """
-        session = self.Session()
-        doc = session.query(Document).filter(Document.id == doc_id).first()
-        if doc:
-            session.delete(doc)
-            session.commit()
-        session.close()
-
-    def get_all_documents(self):
-        """
-        Получает список всех документов из базы данных.
-
-        Возвращает:
-            list: Список объектов Document
-        """
-        session = self.Session()
-        documents = session.query(Document).all()
-        session.close()
-        return documents
+        return document
