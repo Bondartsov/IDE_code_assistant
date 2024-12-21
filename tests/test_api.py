@@ -1,4 +1,4 @@
-# Файл: tests/test_api.py
+# tests/test_api.py
 
 import pytest
 from fastapi.testclient import TestClient
@@ -42,7 +42,7 @@ def test_run_openai_prompt():
     data = {
         "prompt": "What is the capital of France?"
     }
-    response = client.post("/api/openai/", headers=headers, data=data)
+    response = client.post("/api/openai/", headers=headers, json=data)
     assert response.status_code == 200
     assert "response" in response.json()
 
@@ -58,5 +58,3 @@ def test_api_key_expiry_cleanup():
     headers = {"api-key": api_key}
     response = client.get("/api/models/", headers=headers)
     assert response.status_code == 401
-
-# Дополнительные тесты могут быть добавлены по необходимости
