@@ -1,17 +1,12 @@
-# Файл: core/logger.py
+# core/logger.py
 
 import logging
 
-def setup_logging():
-    """
-    Настройка логирования для приложения.
-    """
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    )
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-    # Отключение логов Uvicorn сервера, если необходимо
-    logging.getLogger("uvicorn.access").handlers = []
-
-logger = logging.getLogger("IDE_Code_Assistant")
+# Настройка обработчика и форматирования
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
