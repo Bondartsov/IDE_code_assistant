@@ -1,11 +1,12 @@
 # tests/test_embedding_service.py
 
 import pytest
-from services.embedding_service import generate_embedding, num_tokens, split_text
-from core.config import settings
+from services.embedding_service import embedding_service
 from unittest.mock import patch, MagicMock
+import numpy as np
 
-def test_num_tokens():
+@pytest.mark.asyncio
+async def test_num_tokens():
     """
     Тест подсчёта количества токенов.
     """
@@ -15,10 +16,11 @@ def test_num_tokens():
         mock_encoding_for_model.return_value = mock_encoding
 
         text = "Hello, world!"
-        tokens = num_tokens(text)
+        tokens = embedding_service.num_tokens(text)
         assert tokens == 3
 
-def test_split_text():
+@pytest.mark.asyncio
+async def test_split_text():
     """
     Тест разбиения текста на части по количеству токенов.
     """
@@ -33,19 +35,15 @@ def test_split_text():
 
         text = "Hello, world! " * 1000  # Длинный текст
         max_tokens = 50
-        chunks = split_text(text, max_tokens)
+        chunks = embedding_service.split_text(text, max_tokens)
         assert len(chunks) == 20  # 1000 токенов разделить на чанки по 50 токенов
 
-@pytest.mark.skipif(settings.API_PROVIDER != "openai", reason="Тест предназначен для OpenAI")
-def test_generate_embedding_openai():
+@pytest.mark.asyncio
+async def test_generate_embedding_openai():
     """
     Тест генерации эмбеддинга с использованием OpenAI.
     """
-    with patch('openai.Embedding.create') as mock_create:
-        mock_create.return_value = {
-            'data': [{
-                'embedding': [0.0]*1536
-            }]
-        }
-        embedding = generate_embedding("Test text")
+    with patch('services.openai_service.OpenAIService.generate_embedding', return_value=[0.0]*1536):
+        embedding = await embedding_service.generate_embedding("Test text")
+        assert isinstance(embedding, np.ndarray)
         assert len(embedding) == 1536

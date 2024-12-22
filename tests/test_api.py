@@ -11,7 +11,7 @@ def get_api_key():
     """
     Генерация и получение API-ключа для тестов.
     """
-    response = client.post("/api/generate_key/")
+    response = client.post("/api/generate_key/", json={"name": "Test Application"})
     assert response.status_code == 200
     return response.json()["api_key"]
 
@@ -19,7 +19,7 @@ def test_generate_key():
     """
     Тест генерации нового API-ключа.
     """
-    response = client.post("/api/generate_key/")
+    response = client.post("/api/generate_key/", json={"name": "Test Application"})
     assert response.status_code == 200
     assert "api_key" in response.json()
 
@@ -29,11 +29,11 @@ def test_get_models():
     """
     api_key = get_api_key()
     headers = {"api-key": api_key}
-    with patch('api.endpoints.get_models', return_value=["model-a", "model-b"]):
+    with patch('services.openai_service.OpenAIService.get_models', return_value=["model-a", "model-b"]):
         response = client.get("/api/models/", headers=headers)
     assert response.status_code == 200
-    assert "models" in response.json()
-    assert len(response.json()["models"]) > 0
+    assert isinstance(response.json(), list)
+    assert len(response.json()) > 0
 
 def test_run_openai_prompt():
     """
@@ -44,7 +44,7 @@ def test_run_openai_prompt():
     data = {
         "prompt": "What is the capital of France?"
     }
-    with patch('api.endpoints.generate_response', return_value="Paris"):
+    with patch('services.openai_service.OpenAIService.generate_response', return_value="Paris"):
         response = client.post("/api/openai/", headers=headers, json=data)
     assert response.status_code == 200
     assert "response" in response.json()
@@ -56,8 +56,8 @@ def test_api_key_expiry_cleanup():
     """
     api_key = get_api_key()
     # Отзываем ключ
-    expire_response = client.post(f"/api/expire_key/{api_key}/")
-    assert expire_response.status_code == 200
+    from core.security import api_key_manager
+    api_key_manager.invalidate_api_key(api_key)
     # Проверяем, что ключ больше недействителен
     headers = {"api-key": api_key}
     response = client.get("/api/models/", headers=headers)

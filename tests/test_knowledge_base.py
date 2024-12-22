@@ -31,17 +31,17 @@ def test_add_document(api_key):
                 "test.txt",
                 BytesIO(b"This is a test content."),
                 "text/plain"
-            ),
-        ),
+            )
+        )
     ]
 
     # Подготовка текстовых данных
     data = {
-        "texts": "This is additional text data."
+        "text_data": "This is additional text data."
     }
 
-    with mock.patch('services.embedding_service.generate_embedding', return_value=[0.0]*1536), \
-         mock.patch('services.indexing_service.index_manager.add_document', return_value=None):
+    with mock.patch('services.embedding_service.embedding_service.generate_embeddings', return_value=[[0.0]*1536]), \
+         mock.patch('services.indexing_service.indexing_service.add_documents', return_value=None):
 
         response = client.post(
             "/api/knowledge_base/",
