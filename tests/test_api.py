@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from main import app
+from unittest.mock import patch
 
 client = TestClient(app)
 
@@ -28,7 +29,8 @@ def test_get_models():
     """
     api_key = get_api_key()
     headers = {"api-key": api_key}
-    response = client.get("/api/models/", headers=headers)
+    with patch('api.endpoints.get_models', return_value=["model-a", "model-b"]):
+        response = client.get("/api/models/", headers=headers)
     assert response.status_code == 200
     assert "models" in response.json()
     assert len(response.json()["models"]) > 0
@@ -42,9 +44,11 @@ def test_run_openai_prompt():
     data = {
         "prompt": "What is the capital of France?"
     }
-    response = client.post("/api/openai/", headers=headers, json=data)
+    with patch('api.endpoints.generate_response', return_value="Paris"):
+        response = client.post("/api/openai/", headers=headers, json=data)
     assert response.status_code == 200
     assert "response" in response.json()
+    assert response.json()["response"] == "Paris"
 
 def test_api_key_expiry_cleanup():
     """
