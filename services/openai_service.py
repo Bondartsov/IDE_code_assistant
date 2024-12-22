@@ -1,106 +1,55 @@
 # services/openai_service.py
 
-"""
-Модуль для взаимодействия с OpenAI и LMStudio.
-"""
-
 import openai
 from fastapi import HTTPException
-import requests
-
 from core.config import settings
 from core.logger import logger
+from typing import List  # Import List for type hinting
 
-def get_models() -> list[str]:
-    """
-    Возвращает список доступных моделей.
-
-    Returns:
-        list[str]: Список идентификаторов моделей.
-
-    Raises:
-        HTTPException: При ошибке доступа к API.
-    """
-    api_provider = settings.API_PROVIDER
-
-    if api_provider == "openai":
+class OpenAIService:
+    def __init__(self):
         openai.api_key = settings.OPENAI_API_KEY
+
+    async def generate_embedding(self, text: str):
+        """
+        Генерирует эмбеддинг для заданного текста.
+        """
         try:
-            response = openai.Model.list()
-            models = [model["id"] for model in response["data"]]
-            return models
+            embedding_model = settings.EMBEDDING_MODEL_NAME
+            response = await openai.Embedding.acreate(
+                input=text,
+                model=embedding_model
+            )
+            embedding = response["data"][0]["embedding"]
+            return embedding
         except openai.error.OpenAIError as e:
-            logger.error(f"Error accessing OpenAI API: {e}")
+            logger.error(f"Error generating embedding: {e}")
             raise HTTPException(status_code=500, detail="OpenAI API error")
-    elif api_provider == "lmstudio":
-        # Предполагаем, что LMStudio имеет аналогичный API
+
+    async def generate_response(self, prompt: str) -> str:
+        """
+        Генерирует ответ модели для заданного промпта.
+        """
+        model_name = settings.MODEL_NAME
         try:
-            lmstudio_api_url = f"{settings.LMSTUDIO_API_URL}/models"
-            response = requests.get(lmstudio_api_url)
-            if response.status_code == 200:
-                models = response.json().get("models", [])
-                return models
-            else:
-                logger.error(f"Error from LMStudio API: {response.text}")
-                raise HTTPException(status_code=500, detail="LMStudio API error")
-        except Exception as e:
-            logger.error(f"Error accessing LMStudio API: {e}")
-            raise HTTPException(status_code=500, detail="LMStudio API error")
-    else:
-        logger.error("Unsupported API provider")
-        raise HTTPException(status_code=500, detail="Unsupported API provider")
-
-def generate_response(prompt: str) -> str:
-    """
-    Генерирует ответ от модели на заданный промпт.
-
-    Args:
-        prompt (str): Промпт для модели.
-
-    Returns:
-        str: Ответ модели.
-
-    Raises:
-        HTTPException: При ошибке доступа к API.
-    """
-    api_provider = settings.API_PROVIDER
-    model_name = settings.MODEL_NAME
-
-    if api_provider == "openai":
-        openai.api_key = settings.OPENAI_API_KEY
-        try:
-            completion = openai.ChatCompletion.create(
+            completion = await openai.ChatCompletion.acreate(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}]
             )
             response_text = completion.choices[0].message.content
             return response_text
         except openai.error.OpenAIError as e:
-            logger.error(f"Error accessing OpenAI API: {e}")
+            logger.error(f"Error generating response: {e}")
             raise HTTPException(status_code=500, detail="OpenAI API error")
-    elif api_provider == "lmstudio":
+
+    async def get_models(self) -> List[str]:
+        """
+        Возвращает список доступных моделей OpenAI.
+        """
         try:
-            lmstudio_api_url = settings.LMSTUDIO_API_URL
-            headers = {"Content-Type": "application/json"}
-            payload = {
-                "prompt": prompt,
-                "max_tokens": 150,
-                "temperature": 0.7,
-            }
-            response = requests.post(
-                lmstudio_api_url,
-                json=payload,
-                headers=headers
-            )
-            if response.status_code == 200:
-                response_text = response.json()["choices"][0]["text"]
-                return response_text.strip()
-            else:
-                logger.error(f"Error from LMStudio API: {response.text}")
-                raise HTTPException(status_code=500, detail="LMStudio API error")
-        except Exception as e:
-            logger.error(f"Error accessing LMStudio API: {e}")
-            raise HTTPException(status_code=500, detail="LMStudio API error")
-    else:
-        logger.error("Unsupported API provider")
-        raise HTTPException(status_code=500, detail="Unsupported API provider")
+            response = await openai.Model.alist()
+            models = [model["id"] for model in response["data"]]
+            return models
+        except openai.error.OpenAIError as e:
+            logger.error(f"Error fetching models: {e}")
+            raise HTTPException(status_code=500, detail="OpenAI API error")
