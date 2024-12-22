@@ -3,7 +3,7 @@
 import io
 from typing import List, Optional
 from fastapi import UploadFile
-from PyPDF2 import PdfReader
+from pypdf import PdfReader  # Заменяем PyPDF2 на pypdf
 import docx2txt
 import markdown
 from bs4 import BeautifulSoup

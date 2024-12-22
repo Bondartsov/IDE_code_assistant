@@ -1,39 +1,40 @@
 # tests/test_openai_service.py
 
 import pytest
-from services.openai_service import generate_response, get_models
-from core.config import settings
+from services.openai_service import OpenAIService
 from unittest.mock import MagicMock, patch
 from fastapi import HTTPException
 import openai
+from openai.error import OpenAIError
 
-@pytest.mark.skipif(settings.API_PROVIDER != "openai", reason="Тест предназначен для OpenAI")
-def test_generate_response_openai():
+@pytest.mark.asyncio
+async def test_generate_response_openai():
     """
     Тест генерации ответа через OpenAI API.
     """
-    with patch('openai.ChatCompletion.create') as mock_create:
-        mock_message = MagicMock()
-        mock_message.content = "Test response"
+    openai_service = OpenAIService()
 
-        mock_choice = MagicMock()
-        mock_choice.message = mock_message
+    with patch('openai.ChatCompletion.acreate') as mock_acreate:
+        mock_acreate.return_value = MagicMock(
+            choices=[MagicMock(
+                message=MagicMock(
+                    content="Test response"
+                )
+            )]
+        )
 
-        mock_completion = MagicMock()
-        mock_completion.choices = [mock_choice]
-        
-        mock_create.return_value = mock_completion
-
-        response = generate_response("Test prompt")
+        response = await openai_service.generate_response("Test prompt")
         assert response == "Test response"
 
-@pytest.mark.skipif(settings.API_PROVIDER != "openai", reason="Тест предназначен для OpenAI")
-def test_generate_response_openai_error():
+@pytest.mark.asyncio
+async def test_generate_response_openai_error():
     """
     Тест обработки ошибки при вызове OpenAI API.
     """
-    with patch('openai.ChatCompletion.create', side_effect=openai.error.OpenAIError("Test error")):
+    openai_service = OpenAIService()
+
+    with patch('openai.ChatCompletion.acreate', side_effect=OpenAIError("Test error")):
         with pytest.raises(HTTPException) as exc_info:
-            generate_response("Test prompt")
+            await openai_service.generate_response("Test prompt")
         assert exc_info.value.status_code == 500
         assert exc_info.value.detail == "OpenAI API error"

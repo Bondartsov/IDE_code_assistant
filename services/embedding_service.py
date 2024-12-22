@@ -1,11 +1,18 @@
 # services/embedding_service.py
 
-from typing import List
+import asyncio
+from typing import List, Optional
 import numpy as np
 from core.config import settings
 from services.openai_service import OpenAIService
 from services.lmstudio_service import LMStudioService
 from core.logger import logger
+
+# Попытка импортировать tiktoken
+try:
+    import tiktoken
+except ImportError:
+    tiktoken = None
 
 class EmbeddingService:
     def __init__(self):
@@ -39,4 +46,37 @@ class EmbeddingService:
         embedding = await self.provider.generate_embedding(text)
         return np.array(embedding)
 
+    def num_tokens(self, text: str) -> int:
+        """
+        Подсчитывает количество токенов в тексте.
+
+        :param text: Текстовая строка.
+        :return: Количество токенов.
+        """
+        if tiktoken is None:
+            raise ImportError("tiktoken library is not installed")
+        encoding = tiktoken.encoding_for_model(settings.MODEL_NAME)
+        tokens = encoding.encode(text)
+        return len(tokens)
+
+    def split_text(self, text: str, max_tokens: int) -> List[str]:
+        """
+        Разбивает текст на чанки по количеству токенов.
+
+        :param text: Текстовая строка.
+        :param max_tokens: Максимальное количество токенов в чанке.
+        :return: Список текстовых чанков.
+        """
+        if tiktoken is None:
+            raise ImportError("tiktoken library is not installed")
+        encoding = tiktoken.encoding_for_model(settings.MODEL_NAME)
+        tokens = encoding.encode(text)
+        chunks = []
+        for i in range(0, len(tokens), max_tokens):
+            chunk_tokens = tokens[i:i+max_tokens]
+            chunk_text = encoding.decode(chunk_tokens)
+            chunks.append(chunk_text)
+        return chunks
+
+# Создаём экземпляр сервиса при импорте
 embedding_service = EmbeddingService()
