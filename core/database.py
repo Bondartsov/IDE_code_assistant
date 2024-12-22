@@ -1,4 +1,8 @@
 # core/database.py
+from core.config import settings
+from core.logger import logger
+
+logger.info(f"DATABASE_URL is set to: {settings.DATABASE_URL}")
 
 from typing import Generator
 from datetime import datetime

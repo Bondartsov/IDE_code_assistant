@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     LMSTUDIO_API_URL: Optional[str] = Field(default=None)
     LMSTUDIO_EMBEDDING_API_URL: Optional[str] = Field(default=None)
     MODEL_NAME: str = Field(default="chatgpt-4")
-    DATABASE_URL: str = Field(default="sqlite:///./app.db")
+    DATABASE_URL: str = Field(default="sqlite:///./app.db")  # Здесь задается DATABASE_URL
 
     model_config = SettingsConfigDict(
         env_file=".env",
