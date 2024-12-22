@@ -28,3 +28,9 @@ class OpenAIRequestModel(BaseModel):
     Модель запроса к OpenAI.
     """
     prompt: str
+
+class APIKeyName(BaseModel):
+    """
+    Модель для названия API-ключа.
+    """
+    name: str

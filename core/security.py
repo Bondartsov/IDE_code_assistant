@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Dict
 
 from fastapi import Request, HTTPException, status
+
 class APIKeyManager:
     """
     Класс для управления API-ключами.
@@ -11,19 +12,16 @@ class APIKeyManager:
     def __init__(self) -> None:
         self.api_keys: Dict[str, datetime] = {}
 
-    def create_api_key(self, expires_in_hours: int = 24) -> str:
+    def create_api_key(self) -> str:
         """
         Создает новый API-ключ.
-
-        Args:
-            expires_in_hours (int): Срок действия ключа в часах.
 
         Returns:
             str: Сгенерированный API-ключ.
         """
         import uuid
         api_key = uuid.uuid4().hex
-        self.api_keys[api_key] = datetime.utcnow() + timedelta(hours=expires_in_hours)
+        self.api_keys[api_key] = datetime.utcnow() + timedelta(hours=24)
         return api_key
 
     def validate_api_key(self, api_key: str) -> bool:
@@ -59,8 +57,10 @@ api_key_manager = APIKeyManager()
 def validate_api_key(request: Request):
     """
     Валидирует API-ключ из заголовков запроса.
+
     Args:
         request (Request): Запрос клиента.
+
     Returns:
         str: Проверенный API-ключ.
 
