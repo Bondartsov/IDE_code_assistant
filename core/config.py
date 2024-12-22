@@ -1,17 +1,23 @@
-# Файл: core/config.py
+# core/config.py
 
-import os
-from dotenv import load_dotenv
+from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
-load_dotenv()
-
-class Settings:
+class Settings(BaseSettings):
     """
     Класс для хранения настроек конфигурации приложения.
     """
-    API_PROVIDER: str = os.getenv("API_PROVIDER", "openai")
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
-    LMSTUDIO_API_URL: str = os.getenv("LMSTUDIO_API_URL")
-    MODEL_NAME: str = os.getenv("MODEL_NAME", "chatgpt-4o-latest")
+    API_PROVIDER: str = Field(default="openai")
+    OPENAI_API_KEY: Optional[str] = Field(default=None)
+    LMSTUDIO_API_URL: Optional[str] = Field(default=None)
+    LMSTUDIO_EMBEDDING_API_URL: Optional[str] = Field(default=None)
+    MODEL_NAME: str = Field(default="chatgpt-4")
+    DATABASE_URL: str = Field(default="sqlite:///./app.db")  # Здесь задается DATABASE_URL
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
 
 settings = Settings()
