@@ -3,10 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Dict
 
-from fastapi import Security, HTTPException
-from fastapi.security.api_key import APIKeyHeader
-from starlette.status import HTTP_401_UNAUTHORIZED
-
+from fastapi import Request, HTTPException, status
 class APIKeyManager:
     """
     Класс для управления API-ключами.
@@ -43,7 +40,7 @@ class APIKeyManager:
             if datetime.utcnow() < self.api_keys[api_key]:
                 return True
             else:
-                # Key has expired
+                # Ключ истек
                 del self.api_keys[api_key]
         return False
 
@@ -59,25 +56,26 @@ class APIKeyManager:
 
 api_key_manager = APIKeyManager()
 
-api_key_header = APIKeyHeader(name="api-key", auto_error=False)
-
-async def get_api_key(api_key: str = Security(api_key_header)) -> str:
+def validate_api_key(request: Request):
     """
-    Зависимость для проверки API-ключа.
-
+    Валидирует API-ключ из заголовков запроса.
     Args:
-        api_key (str): API-ключ из заголовка запроса.
-
+        request (Request): Запрос клиента.
     Returns:
         str: Проверенный API-ключ.
 
     Raises:
-        HTTPException: Если API-ключ недействителен.
+        HTTPException: Если API-ключ отсутствует или недействителен.
     """
-    if api_key and api_key_manager.validate_api_key(api_key):
-        return api_key
-    else:
+    api_key = request.headers.get("api-key")
+    if not api_key:
         raise HTTPException(
-            status_code=HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired API Key",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key missing"
         )
+    if not api_key_manager.validate_api_key(api_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired API Key"
+        )
+    return api_key
