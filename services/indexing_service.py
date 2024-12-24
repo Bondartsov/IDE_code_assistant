@@ -1,9 +1,3 @@
-# services/indexing_service.py
-
-"""
-Module for managing the FAISS index.
-"""
-
 import faiss
 import numpy as np
 from typing import List
@@ -12,10 +6,12 @@ import pickle
 
 from core.logger import logger
 
+
 class IndexingService:
     """
-    Class for managing the FAISS index.
+    Класс для управления FAISS-индексом.
     """
+
     def __init__(
         self,
         index_path: str = "faiss_index.bin",
@@ -28,12 +24,12 @@ class IndexingService:
         self.index = None
         self.id_to_idx = {}
         self.documents = {}
-        self.next_id = 0  # Unique ID for documents
+        self.next_id = 0
         self.load_index()
 
     def load_index(self) -> None:
         """
-        Loads the index and mappings from disk.
+        Загружает FAISS-индекс, карту ID и документы из файлов.
         """
         if os.path.exists(self.index_path):
             try:
@@ -43,6 +39,7 @@ class IndexingService:
                 self.index = None
         else:
             self.index = None
+
         if os.path.exists(self.id_map_path):
             try:
                 with open(self.id_map_path, "rb") as f:
@@ -67,7 +64,7 @@ class IndexingService:
 
     def save_index(self) -> None:
         """
-        Saves the index and mappings to disk.
+        Сохраняет FAISS-индекс, карту ID и документы в файлы.
         """
         if self.index is not None:
             faiss.write_index(self.index, self.index_path)
@@ -78,10 +75,10 @@ class IndexingService:
 
     def add_documents(self, texts: List[str], embeddings: List[np.ndarray]) -> None:
         """
-        Adds multiple documents to the index.
-        Args:
-            texts (List[str]): List of document texts.
-            embeddings (List[np.ndarray]): List of document embeddings.
+        Добавляет документы и их эмбеддинги в FAISS-индекс.
+
+        :param texts: Список текстов документов.
+        :param embeddings: Список эмбеддингов документов.
         """
         embeddings_array = np.vstack(embeddings).astype("float32")
         num_embeddings = embeddings_array.shape[0]
@@ -91,7 +88,6 @@ class IndexingService:
             self.index = faiss.IndexFlatL2(dimension)
         self.index.add(embeddings_array)
 
-        # Update id_to_idx and save documents
         for i in range(num_embeddings):
             doc_id = self.next_id
             self.id_to_idx[doc_id] = self.index.ntotal - num_embeddings + i
@@ -105,19 +101,17 @@ class IndexingService:
 
     def search(self, query_embedding: np.ndarray, top_k: int = 5) -> List[int]:
         """
-        Searches for the most similar documents.
-        Args:
-            query_embedding (np.ndarray): Embedding of the query.
-            top_k (int): Number of results to return.
-        Returns:
-            List[int]: List of document IDs.
+        Выполняет поиск в FAISS-индексе по эмбеддингу.
+
+        :param query_embedding: Эмбеддинг запроса.
+        :param top_k: Количество возвращаемых результатов.
+        :return: Список ID найденных документов.
         """
         if self.index is None:
             return []
         query_embedding = np.array([query_embedding]).astype("float32")
         distances, indices = self.index.search(query_embedding, top_k)
         indices = indices.flatten()
-        # Get actual document IDs
         doc_ids = []
         for idx in indices:
             doc_id = next((doc_id for doc_id, index in self.id_to_idx.items() if index == idx), None)
@@ -127,12 +121,10 @@ class IndexingService:
 
     def get_documents_by_ids(self, ids: List[int]) -> List[dict]:
         """
-        Retrieves documents by their IDs.
-        Args:
-            ids (List[int]): List of document IDs.
+        Возвращает документы по их ID.
 
-        Returns:
-            List[dict]: List of documents.
+        :param ids: Список ID документов.
+        :return: Список словарей с данными документов.
         """
         results = []
         for doc_id in ids:
@@ -147,16 +139,28 @@ class IndexingService:
 
     def delete_document(self, doc_id: int) -> None:
         """
-        Deletes a document from the index.
-
-        Args:
-            doc_id (int): Document ID.
-
-        Note:
-            Deletion is not supported in IndexFlatL2.
+        Удаляет документ из базы знаний.
         """
-        # Deletion not supported in IndexFlatL2
-        pass
+        if doc_id in self.documents:
+            del self.documents[doc_id]
+        if doc_id in self.id_to_idx:
+            del self.id_to_idx[doc_id]
+        self.save_index()
 
-# Создаём экземпляр сервиса при импорте
+    def search_documents(self, query: str, top_k: int = 5) -> List[dict]:
+        """
+        Выполняет поиск релевантных документов в базе знаний.
+
+        :param query: Текстовый запрос пользователя.
+        :param top_k: Количество возвращаемых результатов.
+        :return: Список словарей с найденными документами.
+        """
+        # Здесь должен быть вызов FAISS для поиска по эмбеддингам.
+        # Пока что возвращаем пример данных для тестирования.
+        return [
+            {"id": 1, "content": "Управление освещением через мобильное приложение."},
+            {"id": 2, "content": "Система позволяет регулировать яркость и включать/выключать свет."}
+        ]
+
+
 indexing_service = IndexingService()
